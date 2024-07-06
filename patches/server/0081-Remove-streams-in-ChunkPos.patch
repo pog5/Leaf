@@ -1,0 +1,194 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dreeam <61569423+Dreeam-qwq@users.noreply.github.com>
+Date: Fri, 5 Jul 2024 02:48:03 +0800
+Subject: [PATCH] Remove streams in ChunkPos
+
+
+diff --git a/src/main/java/net/minecraft/gametest/framework/GameTestInfo.java b/src/main/java/net/minecraft/gametest/framework/GameTestInfo.java
+index 99b749810a03d56ecd51b34edb504c66c0a5c30f..9a15cead597544a0fa9bfc707391603ff2802da0 100644
+--- a/src/main/java/net/minecraft/gametest/framework/GameTestInfo.java
++++ b/src/main/java/net/minecraft/gametest/framework/GameTestInfo.java
+@@ -97,10 +97,7 @@ public class GameTestInfo {
+                 this.fail(new IllegalStateException("Running test without structure block entity"));
+             }
+ 
+-            if (this.chunksLoaded
+-                || StructureUtils.getStructureBoundingBox(this.structureBlockEntity)
+-                    .intersectingChunks()
+-                    .allMatch(chunkPos -> this.level.isPositionEntityTicking(chunkPos.getWorldPosition()))) {
++            if (this.chunksLoaded || allMatch(this.structureBlockEntity)) { // Leaf - Remove streams in ChunkPos
+                 this.chunksLoaded = true;
+                 if (this.ensureStructureIsPlaced()) {
+                     this.tickInternal();
+@@ -116,6 +113,19 @@ public class GameTestInfo {
+         }
+     }
+ 
++    // Leaf start - Remove streams in ChunkPos
++    private boolean allMatch(StructureBlockEntity structureBlockEntity) {
++        for (net.minecraft.world.level.ChunkPos chunkPos : StructureUtils.getStructureBoundingBox(structureBlockEntity)
++                .intersectingChunks()) {
++            if (!this.level.isPositionEntityTicking(chunkPos.getWorldPosition())) {
++                return false;
++            }
++        }
++
++        return true;
++    }
++    // Leaf end - Remove streams in ChunkPos
++
+     private void tickInternal() {
+         this.tickCount = this.level.getGameTime() - this.startTick;
+         if (this.tickCount >= 0L) {
+diff --git a/src/main/java/net/minecraft/gametest/framework/StructureUtils.java b/src/main/java/net/minecraft/gametest/framework/StructureUtils.java
+index da8c01eed7fdec8dfe89bca97fbd8f42d13be1ff..bdfcff26faccc30df7a2c8623a9343529bfa9233 100644
+--- a/src/main/java/net/minecraft/gametest/framework/StructureUtils.java
++++ b/src/main/java/net/minecraft/gametest/framework/StructureUtils.java
+@@ -152,7 +152,7 @@ public class StructureUtils {
+     }
+ 
+     private static void forceLoadChunks(BoundingBox box, ServerLevel world) {
+-        box.intersectingChunks().forEach(chunkPos -> world.setChunkForced(chunkPos.x, chunkPos.z, true));
++        box.intersectingChunks().forEach(chunkPos -> world.setChunkForced(chunkPos.x, chunkPos.z, true)); // Leaf - Remove streams in ChunkPos - diff on change
+     }
+ 
+     public static void clearSpaceForStructure(BoundingBox area, ServerLevel world) {
+diff --git a/src/main/java/net/minecraft/server/commands/PlaceCommand.java b/src/main/java/net/minecraft/server/commands/PlaceCommand.java
+index 00fe31a486121eabd6c1e6fc85b94ecede8a609e..d44086ffaa3add32ba4da4646d343bad57697860 100644
+--- a/src/main/java/net/minecraft/server/commands/PlaceCommand.java
++++ b/src/main/java/net/minecraft/server/commands/PlaceCommand.java
+@@ -138,9 +138,7 @@ public class PlaceCommand {
+             ChunkPos chunkcoordintpair1 = new ChunkPos(SectionPos.blockToSectionCoord(structureboundingbox.maxX()), SectionPos.blockToSectionCoord(structureboundingbox.maxZ()));
+ 
+             PlaceCommand.checkLoaded(worldserver, chunkcoordintpair, chunkcoordintpair1);
+-            ChunkPos.rangeClosed(chunkcoordintpair, chunkcoordintpair1).forEach((chunkcoordintpair2) -> {
+-                structurestart.placeInChunk(worldserver, worldserver.structureManager(), chunkgenerator, worldserver.getRandom(), new BoundingBox(chunkcoordintpair2.getMinBlockX(), worldserver.getMinBuildHeight(), chunkcoordintpair2.getMinBlockZ(), chunkcoordintpair2.getMaxBlockX(), worldserver.getMaxBuildHeight(), chunkcoordintpair2.getMaxBlockZ()), chunkcoordintpair2);
+-            });
++            ChunkPos.rangeClosed(chunkcoordintpair, chunkcoordintpair1).forEach((chunkcoordintpair2) -> structurestart.placeInChunk(worldserver, worldserver.structureManager(), chunkgenerator, worldserver.getRandom(), new BoundingBox(chunkcoordintpair2.getMinBlockX(), worldserver.getMinBuildHeight(), chunkcoordintpair2.getMinBlockZ(), chunkcoordintpair2.getMaxBlockX(), worldserver.getMaxBuildHeight(), chunkcoordintpair2.getMaxBlockZ()), chunkcoordintpair2)); // Leaf - Remove streams in ChunkPos - diff on change
+             String s = structure.key().location().toString();
+ 
+             source.sendSuccess(() -> {
+@@ -188,10 +186,12 @@ public class PlaceCommand {
+     }
+ 
+     private static void checkLoaded(ServerLevel world, ChunkPos pos1, ChunkPos pos2) throws CommandSyntaxException {
+-        if (ChunkPos.rangeClosed(pos1, pos2).filter((chunkcoordintpair2) -> {
+-            return !world.isLoaded(chunkcoordintpair2.getWorldPosition());
+-        }).findAny().isPresent()) {
+-            throw BlockPosArgument.ERROR_NOT_LOADED.create();
++        // Leaf start - Remove streams in ChunkPos
++        for (ChunkPos chunkcoordintpair2 : ChunkPos.rangeClosed(pos1, pos2)) {
++            if (!world.isLoaded(chunkcoordintpair2.getWorldPosition())) {
++                throw BlockPosArgument.ERROR_NOT_LOADED.create();
++            }
+         }
++        // Leaf end - Remove streams in ChunkPos
+     }
+ }
+diff --git a/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiManager.java b/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiManager.java
+index 0be7346f9c5e89ea03c69f7c8ba4733d2c7759fc..4d4001413f764fa00586ff0a47b508d832c9054f 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiManager.java
++++ b/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiManager.java
+@@ -224,7 +224,7 @@ public class PoiManager extends SectionStorage<PoiSection> implements ca.spotted
+ 
+     public Stream<PoiRecord> getInSquare(Predicate<Holder<PoiType>> typePredicate, BlockPos pos, int radius, PoiManager.Occupancy occupationStatus) {
+         int i = Math.floorDiv(radius, 16) + 1;
+-        return ChunkPos.rangeClosed(new ChunkPos(pos), i).flatMap(chunkPos -> this.getInChunk(typePredicate, chunkPos, occupationStatus)).filter(poi -> {
++        return ChunkPos.rangeClosed(new ChunkPos(pos), i).stream().flatMap(chunkPos -> this.getInChunk(typePredicate, chunkPos, occupationStatus)).filter(poi -> { // Leaf - Remove streams in ChunkPos
+             BlockPos blockPos2 = poi.getPos();
+             return Math.abs(blockPos2.getX() - pos.getX()) <= radius && Math.abs(blockPos2.getZ() - pos.getZ()) <= radius;
+         });
+diff --git a/src/main/java/net/minecraft/world/level/ChunkPos.java b/src/main/java/net/minecraft/world/level/ChunkPos.java
+index fa58eeec2b652f0fa251eedf11cfabde5fd3198b..28eca82a1baf82b4a07c54ca2a6c074f018e8772 100644
+--- a/src/main/java/net/minecraft/world/level/ChunkPos.java
++++ b/src/main/java/net/minecraft/world/level/ChunkPos.java
+@@ -174,40 +174,36 @@ public class ChunkPos {
+         return i * i + j * j;
+     }
+ 
+-    public static Stream<ChunkPos> rangeClosed(ChunkPos center, int radius) {
++    public static java.util.List<ChunkPos> rangeClosed(ChunkPos center, int radius) { // Leaf - Remove streams in ChunkPos - stream -> list
+         return rangeClosed(new ChunkPos(center.x - radius, center.z - radius), new ChunkPos(center.x + radius, center.z + radius));
+     }
+ 
+-    public static Stream<ChunkPos> rangeClosed(ChunkPos pos1, ChunkPos pos2) {
++    // Leaf start - Remove streams in ChunkPos
++    public static java.util.List<ChunkPos> rangeClosed(ChunkPos pos1, ChunkPos pos2) {
+         int i = Math.abs(pos1.x - pos2.x) + 1;
+         int j = Math.abs(pos1.z - pos2.z) + 1;
+         final int k = pos1.x < pos2.x ? 1 : -1;
+         final int l = pos1.z < pos2.z ? 1 : -1;
+-        return StreamSupport.stream(new AbstractSpliterator<ChunkPos>((long)(i * j), 64) {
+-            @Nullable
+-            private ChunkPos pos;
+-
+-            @Override
+-            public boolean tryAdvance(Consumer<? super ChunkPos> consumer) {
+-                if (this.pos == null) {
+-                    this.pos = pos1;
+-                } else {
+-                    int i = this.pos.x;
+-                    int j = this.pos.z;
+-                    if (i == pos2.x) {
+-                        if (j == pos2.z) {
+-                            return false;
+-                        }
+-
+-                        this.pos = new ChunkPos(pos1.x, j + l);
+-                    } else {
+-                        this.pos = new ChunkPos(i + k, j);
+-                    }
+-                }
+-
+-                consumer.accept(this.pos);
+-                return true;
++
++        java.util.List<ChunkPos> chunkPosList = new java.util.ArrayList<>(i * j);
++        ChunkPos currPos = pos1;
++
++        while (true) {
++            chunkPosList.add(currPos);
++
++            if (currPos.x == pos2.x && currPos.z == pos2.z) {
++                break;
+             }
+-        }, false);
++
++            int cx = currPos.x;
++            int cz = currPos.z;
++
++            currPos = cx == pos2.x
++                    ? new ChunkPos(pos1.x, cz + l)
++                    : new ChunkPos(cx + k, cz);
++        }
++
++        return chunkPosList;
+     }
++    // Leaf end - Remove streams in ChunkPos
+ }
+diff --git a/src/main/java/net/minecraft/world/level/chunk/storage/IOWorker.java b/src/main/java/net/minecraft/world/level/chunk/storage/IOWorker.java
+index 316bf111fe94ce7a71af71cd32c94fcf528d4365..3bef0b3c406b6abd81a4d3c22dae9bdf72e79365 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/storage/IOWorker.java
++++ b/src/main/java/net/minecraft/world/level/chunk/storage/IOWorker.java
+@@ -96,7 +96,7 @@ public class IOWorker implements ChunkScanAccess, AutoCloseable {
+                 ChunkPos chunkPos2 = ChunkPos.maxFromRegion(chunkX, chunkZ);
+                 BitSet bitSet = new BitSet();
+                 ChunkPos.rangeClosed(chunkPos, chunkPos2)
+-                    .forEach(
++                    .forEach( // Leaf - Remove streams in ChunkPos - diff on change
+                         chunkPosx -> {
+                             CollectFields collectFields = new CollectFields(
+                                 new FieldSelector(IntTag.TYPE, "DataVersion"), new FieldSelector(CompoundTag.TYPE, "blending_data")
+diff --git a/src/main/java/net/minecraft/world/level/levelgen/structure/BoundingBox.java b/src/main/java/net/minecraft/world/level/levelgen/structure/BoundingBox.java
+index 23126e841650041e4cbb795dcf885aca993f9bbe..2754653dee9d5de677e1b32861d140aaf14b63bf 100644
+--- a/src/main/java/net/minecraft/world/level/levelgen/structure/BoundingBox.java
++++ b/src/main/java/net/minecraft/world/level/levelgen/structure/BoundingBox.java
+@@ -89,7 +89,7 @@ public class BoundingBox {
+         }
+     }
+ 
+-    public Stream<ChunkPos> intersectingChunks() {
++    public java.util.List<ChunkPos> intersectingChunks() { // Leaf - Remove streams in ChunkPos - stream -> list
+         int i = SectionPos.blockToSectionCoord(this.minX());
+         int j = SectionPos.blockToSectionCoord(this.minZ());
+         int k = SectionPos.blockToSectionCoord(this.maxX());

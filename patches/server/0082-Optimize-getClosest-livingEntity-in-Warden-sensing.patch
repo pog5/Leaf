@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dreeam <61569423+Dreeam-qwq@users.noreply.github.com>
+Date: Sun, 7 Jul 2024 01:36:30 +0800
+Subject: [PATCH] Optimize getClosest livingEntity in Warden sensing
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/ai/sensing/WardenEntitySensor.java b/src/main/java/net/minecraft/world/entity/ai/sensing/WardenEntitySensor.java
+index e6bdf1cb5892b63e3dd39ca7f8c9f903782b880a..f117329aa6fe47157f6d5aad2fcdd0b0ccb73b34 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/sensing/WardenEntitySensor.java
++++ b/src/main/java/net/minecraft/world/entity/ai/sensing/WardenEntitySensor.java
+@@ -23,30 +23,38 @@ public class WardenEntitySensor extends NearestLivingEntitySensor<Warden> {
+     protected void doTick(ServerLevel world, Warden entity) {
+         super.doTick(world, entity);
+         getClosest(entity, entityx -> entityx.getType() == EntityType.PLAYER)
+-            .or(() -> getClosest(entity, entityx -> entityx.getType() != EntityType.PLAYER))
++            .or(() -> getClosest(entity, entityx -> entityx.getType() != EntityType.PLAYER)) // Dreeam TODO - Check these two loops
+             .ifPresentOrElse(
+                 entityx -> entity.getBrain().setMemory(MemoryModuleType.NEAREST_ATTACKABLE, entityx),
+                 () -> entity.getBrain().eraseMemory(MemoryModuleType.NEAREST_ATTACKABLE)
+             );
+     }
+ 
++    // Leaf start - Optimize getClosest livingEntity in Warden sensing
+     private static Optional<LivingEntity> getClosest(Warden warden, Predicate<LivingEntity> targetPredicate) {
+-        return warden.getBrain()
+-            .getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES)
+-            .stream()
+-            .flatMap(Collection::stream)
+-            .filter(warden::canTargetEntity)
+-            .filter(targetPredicate)
+-            .findFirst();
++        Optional<List<LivingEntity>> mem = warden.getBrain().getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES);
++
++        if (mem.isPresent()){
++            for (LivingEntity entity : mem.get()) {
++                if (!warden.canTargetEntity(entity)) continue;
++
++                if (!targetPredicate.test(entity)) continue;
++
++                return Optional.of(entity);
++            }
++        }
++
++        return Optional.empty();
+     }
++    // Leaf end - Optimize getClosest livingEntity in Warden sensing
+ 
+     @Override
+     protected int radiusXZ() {
+-        return 24;
++        return 24; // Dreeam TODO - Configurable
+     }
+ 
+     @Override
+     protected int radiusY() {
+-        return 24;
++        return 24; // Dreeam TODO - Configurable
+     }
+ }
