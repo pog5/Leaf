@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dreeam <61569423+Dreeam-qwq@users.noreply.github.com>
+Date: Sun, 7 Jul 2024 18:32:07 +0800
+Subject: [PATCH] Curve entity collision
+
+TODO
+
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 37e65d66ba5da001322924a3f00fc948aab0d91d..021c0857d78ff7d2d2d7f20081524993a2aaa159 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -1153,7 +1153,9 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+             // Paper end
+ 
+             movement = this.maybeBackOffFromEdge(movement, movementType);
+-            Vec3 vec3d1 = this.collide(movement);
++            Vec3 vec3d1 = this.level.paperConfig().collisions.onlyPlayersCollide && this instanceof ServerPlayer // Paper - Collision option for requiring a player participant
++                    ? Vec3.ZERO
++                    : this.collide(movement);
+             double d0 = vec3d1.lengthSqr();
+ 
+             if (d0 > 1.0E-7D) {
+@@ -1455,7 +1457,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+ 
+     private Vec3 collide(Vec3 movement) {
+         AABB axisalignedbb = this.getBoundingBox();
+-        List<VoxelShape> list = this.level().getEntityCollisions(this, axisalignedbb.expandTowards(movement));
++        List<VoxelShape> list = true ? new ArrayList<>() : this.level().getEntityCollisions(this, axisalignedbb.expandTowards(movement));
+         Vec3 vec3d1 = movement.lengthSqr() == 0.0D ? movement : Entity.collideBoundingBox(this, movement, axisalignedbb, this.level(), list);
+         boolean flag = movement.x != vec3d1.x;
+         boolean flag1 = movement.y != vec3d1.y;
